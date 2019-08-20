@@ -121,4 +121,13 @@ rec {
     after = [];
   };
 
+  dagIf = condition: dag: 
+    if condition then
+      dag
+    else
+      {
+        before = [];
+        after = [];
+        data = "";
+      };
 }

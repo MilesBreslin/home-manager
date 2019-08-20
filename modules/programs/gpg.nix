@@ -38,7 +38,8 @@ in {
       example = [ ./pubkeys.txt ];
       default = [ ];
       description = ''
-        A list of keyfiles to be imported into GnuPG.
+        A list of keyfiles to be imported into GnuPG. These keyfiles
+        will be copied into the world-readable Nix store.
       '';
     };
   };
@@ -70,13 +71,24 @@ in {
 
     home.file.".gnupg/gpg.conf".text = cfgText;
 
-    home.activation.importGgpKeys = dag.entryAfter ["linkGeneration"] (
-      let
-        importKey = keyfile: ''
-          ${pkgs.gnupg}/bin/gpg --import ${lib.escapeShellArg (builtins.toString keyfile)}
-        '';
-      in
-        lib.concatMapStrings (x: importKey x) cfg.keyfiles
-    );
+    home.activation = mkIf (cfg.keyfiles != []) {
+      importGgpKeys = dag.entryAfter ["linkGeneration"] (
+        let
+          pathString = keyfile: 
+            let
+              storeKeyfile = pkgs.copyPathToStore keyfile;
+            in
+              lib.escapeShellArg (builtins.toString storeKeyfile);
+          importScript = pkgs.writeShellScript "importGpgKeys" ''
+            for keyfile in "$@" ; do
+              ${pkgs.gnupg}/bin/gpg --import "$keyfile"
+            done
+          '';
+        in
+          ''
+          ${importScript} ${concatMapStringsSep " " (path: pathString) cfg.keyfiles}
+          ''
+      );
+    };
   };
 }
